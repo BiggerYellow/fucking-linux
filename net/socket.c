@@ -448,6 +448,7 @@ static struct file_system_type sock_fs_type = {
 
 /**
  *	sock_alloc_file - Bind a &socket to a &file
+ *	将 socket 绑定到 file 中
  *	@sock: socket
  *	@flags: file status flags
  *	@dname: protocol name
@@ -467,6 +468,7 @@ struct file *sock_alloc_file(struct socket *sock, int flags, const char *dname)
 	if (!dname)
 		dname = sock->sk ? sock->sk->sk_prot_creator->name : "";
 
+	// 分配 file 内存
 	file = alloc_file_pseudo(SOCK_INODE(sock), sock_mnt, dname,
 				O_RDWR | (flags & O_NONBLOCK),
 				&socket_file_ops);
@@ -475,6 +477,7 @@ struct file *sock_alloc_file(struct socket *sock, int flags, const char *dname)
 		return file;
 	}
 
+	//初始化 file、socket
 	file->f_mode |= FMODE_NOWAIT;
 	sock->file = file;
 	file->private_data = sock;
@@ -1888,21 +1891,27 @@ struct file *do_accept(struct file *file, struct proto_accept_arg *arg,
 		       struct sockaddr __user *upeer_sockaddr,
 		       int __user *upeer_addrlen, int flags)
 {
+	//声明原 sock 和 新socket
 	struct socket *sock, *newsock;
+	//声明新file
 	struct file *newfile;
 	int err, len;
 	struct sockaddr_storage address;
 	const struct proto_ops *ops;
 
+	//从原文件中获取 socket
 	sock = sock_from_file(file);
 	if (!sock)
 		return ERR_PTR(-ENOTSOCK);
 
+	//初始化新 socket
 	newsock = sock_alloc();
 	if (!newsock)
 		return ERR_PTR(-ENFILE);
+	//获取原 sock 的 ops 用于赋值给 newsock
 	ops = READ_ONCE(sock->ops);
 
+	//通过旧 sock 属性填充 newsock
 	newsock->type = sock->type;
 	newsock->ops = ops;
 
@@ -1912,6 +1921,7 @@ struct file *do_accept(struct file *file, struct proto_accept_arg *arg,
 	 */
 	__module_get(ops->owner);
 
+	//申请新的 file 对象，并将新的 socket 绑定上去
 	newfile = sock_alloc_file(newsock, flags, sock->sk->sk_prot_creator->name);
 	if (IS_ERR(newfile))
 		return newfile;
@@ -1921,6 +1931,7 @@ struct file *do_accept(struct file *file, struct proto_accept_arg *arg,
 		goto out_fd;
 
 	arg->flags |= sock->file->f_flags;
+	// newsock 接收连接 开始监听
 	err = ops->accept(sock, newsock, arg);
 	if (err < 0)
 		goto out_fd;
@@ -1937,7 +1948,9 @@ struct file *do_accept(struct file *file, struct proto_accept_arg *arg,
 			goto out_fd;
 	}
 
-	/* File flags are not inherited via accept() unlike another OSes. */
+	/* File flags are not inherited via accept() unlike another OSes.
+	 * 与其他操作系统不同，文件标志不会通过 accept 继承
+	 * */
 	return newfile;
 out_fd:
 	fput(newfile);
@@ -1948,7 +1961,9 @@ static int __sys_accept4_file(struct file *file, struct sockaddr __user *upeer_s
 			      int __user *upeer_addrlen, int flags)
 {
 	struct proto_accept_arg arg = { };
+	//声明 新file
 	struct file *newfile;
+	//声明 新文件描述符的数量
 	int newfd;
 
 	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK))
@@ -1957,16 +1972,19 @@ static int __sys_accept4_file(struct file *file, struct sockaddr __user *upeer_s
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
 
+	//获取未使用的 fd 数量
 	newfd = get_unused_fd_flags(flags);
 	if (unlikely(newfd < 0))
 		return newfd;
 
+	//接收 socket 连接 （创建 socket 并分配 file）
 	newfile = do_accept(file, &arg, upeer_sockaddr, upeer_addrlen,
 			    flags);
 	if (IS_ERR(newfile)) {
 		put_unused_fd(newfd);
 		return PTR_ERR(newfile);
 	}
+	//添加新文件到当前进程的打开文件列表
 	fd_install(newfd, newfile);
 	return newfd;
 }
@@ -1977,6 +1995,8 @@ static int __sys_accept4_file(struct file *file, struct sockaddr __user *upeer_s
  *	connected fd. We collect the address of the connector in kernel
  *	space and move it to user at the very end. This is unclean because
  *	we open the socket then return an error.
+ *	对于 accept，我们尝试创建一个新的 socket，建立与客户端的链接，唤醒客户端，然后返回新连接的 fd。
+ *	我们在内核空间中收集连接器的地址，并在最后将其移动到用户空间。这是不干净的，因为我们打开套接字然后返回一个错误。
  *
  *	1003.1g adds the ability to recvmsg() to query connection pending
  *	status to recvmsg. We need to add that support in a way thats

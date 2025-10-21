@@ -528,6 +528,7 @@ struct files_struct init_files = {
 
 static unsigned int find_next_fd(struct fdtable *fdt, unsigned int start)
 {
+
 	unsigned int maxfd = fdt->max_fds; /* always multiple of BITS_PER_LONG */
 	unsigned int maxbit = maxfd / BITS_PER_LONG;
 	unsigned int bitbit = start / BITS_PER_LONG;
@@ -535,6 +536,7 @@ static unsigned int find_next_fd(struct fdtable *fdt, unsigned int start)
 
 	/*
 	 * Try to avoid looking at the second level bitmap
+	 * 避免查看第二季位图
 	 */
 	bit = find_next_zero_bit(&fdt->open_fds[bitbit], BITS_PER_LONG,
 				 start & (BITS_PER_LONG - 1));
@@ -551,6 +553,7 @@ static unsigned int find_next_fd(struct fdtable *fdt, unsigned int start)
 
 /*
  * allocate a file descriptor, mark it busy.
+ * 分配一个文件描述符，将其标记为忙碌中
  */
 static int alloc_fd(unsigned start, unsigned end, unsigned flags)
 {
@@ -559,13 +562,18 @@ static int alloc_fd(unsigned start, unsigned end, unsigned flags)
 	int error;
 	struct fdtable *fdt;
 
+	//自旋锁
 	spin_lock(&files->file_lock);
 repeat:
+	//获取当前线程的 ftd 指针变量
 	fdt = files_fdtable(files);
+	//从 start 位置开始搜索，针对 get_unused_fd_flags ，start 值为 0
 	fd = start;
+	//判断是否需求调整 fd 的值，因在当前进程描述符中，其 file->next_fd 即为下一个申请的 fd 值
 	if (fd < files->next_fd)
 		fd = files->next_fd;
 
+	//判断要申请的 fd 值是否小于当前线程支持的最大进程数，若小于则调用 find_next_zero_bit 查找第一个位数为 0 位对应的 index 值
 	if (likely(fd < fdt->max_fds))
 		fd = find_next_fd(fdt, fd);
 
@@ -574,9 +582,10 @@ repeat:
 	 * will limit the total number of files that can be opened.
 	 */
 	error = -EMFILE;
+	//可用fd 超过 最大直接退出
 	if (unlikely(fd >= end))
 		goto out;
-
+	//若当前fd 超过 fdt的最大fd 则进行扩展
 	if (unlikely(fd >= fdt->max_fds)) {
 		error = expand_files(files, fd);
 		if (error < 0)
@@ -585,6 +594,7 @@ repeat:
 		goto repeat;
 	}
 
+	//若开始位置小于当前文件的下一个 fd 地址，则更新下一个 fd 地址
 	if (start <= files->next_fd)
 		files->next_fd = fd + 1;
 
@@ -604,6 +614,7 @@ int __get_unused_fd_flags(unsigned flags, unsigned long nofile)
 
 int get_unused_fd_flags(unsigned flags)
 {
+	// rlimit(RLIMIT_NOFILE) 用于获取 linux 内核中所有进程可打开的最大文件数
 	return __get_unused_fd_flags(flags, rlimit(RLIMIT_NOFILE));
 }
 EXPORT_SYMBOL(get_unused_fd_flags);
@@ -628,6 +639,7 @@ EXPORT_SYMBOL(put_unused_fd);
 
 /**
  * fd_install - install a file pointer in the fd array
+ * 在 fd 数组中安装一个文件指针
  * @fd: file descriptor to install the file in
  * @file: the file to install
  *
@@ -642,14 +654,20 @@ void fd_install(unsigned int fd, struct file *file)
 	if (WARN_ON_ONCE(unlikely(file->f_mode & FMODE_BACKING)))
 		return;
 
+	//声明 rcu 读，禁止cpu抢占
 	rcu_read_lock_sched();
 
+	//若文件列表处于数量调整中
 	if (unlikely(files->resize_in_progress)) {
+		//rcu 读解锁
 		rcu_read_unlock_sched();
+		//加自旋锁
 		spin_lock(&files->file_lock);
 		fdt = files_fdtable(files);
 		VFS_BUG_ON(rcu_access_pointer(fdt->fd[fd]) != NULL);
+		//添加文件
 		rcu_assign_pointer(fdt->fd[fd], file);
+		//自旋解锁
 		spin_unlock(&files->file_lock);
 		return;
 	}
@@ -657,7 +675,9 @@ void fd_install(unsigned int fd, struct file *file)
 	smp_rmb();
 	fdt = rcu_dereference_sched(files->fdt);
 	VFS_BUG_ON(rcu_access_pointer(fdt->fd[fd]) != NULL);
+	//将文件添加到可用的文件数组中
 	rcu_assign_pointer(fdt->fd[fd], file);
+	//rcu 读解锁
 	rcu_read_unlock_sched();
 }
 

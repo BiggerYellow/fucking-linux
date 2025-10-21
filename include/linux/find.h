@@ -166,12 +166,14 @@ unsigned long find_next_or_bit(const unsigned long *addr1,
 #ifndef find_next_zero_bit
 /**
  * find_next_zero_bit - find the next cleared bit in a memory region
- * @addr: The address to base the search on
- * @size: The bitmap size in bits
- * @offset: The bitnumber to start searching at
+ * 查找内存区域中下一个被清除的位
+ * @addr: The address to base the search on 搜索的基质地址，是一个指向无符号长整型数组的指针，表示要查找的位图
+ * @size: The bitmap size in bits 以位为单位的位图大小
+ * @offset: The bitnumber to start searching at 开始搜索的位号，起始位置，表示从哪个位开始查找下一个为0的位
  *
  * Returns the bit number of the next zero bit
  * If no bits are zero, returns @size.
+ * 返回下一个零位的数，如果没有位为0，则返回数量大小
  */
 static __always_inline
 unsigned long find_next_zero_bit(const unsigned long *addr, unsigned long size,

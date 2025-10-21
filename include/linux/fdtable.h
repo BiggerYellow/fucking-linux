@@ -25,7 +25,7 @@
 
 struct fdtable {
 	unsigned int max_fds;
-	struct file __rcu **fd;      /* current fd array */
+	struct file __rcu **fd;      /* current fd array 当前文件数组 */
 	unsigned long *close_on_exec;
 	unsigned long *open_fds;
 	unsigned long *full_fds_bits;
@@ -34,10 +34,12 @@ struct fdtable {
 
 /*
  * Open file table structure
+ * 系统打开文件表
  */
 struct files_struct {
   /*
    * read mostly part
+   *
    */
 	atomic_t count;
 	bool resize_in_progress;

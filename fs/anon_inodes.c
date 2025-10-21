@@ -172,7 +172,7 @@ err:
  * anon_inode_getfile - creates a new file instance by hooking it up to an
  *                      anonymous inode, and a dentry that describe the "class"
  *                      of the file
- *
+ *                      通过将新文件实例连接到匿名 inode 和描述文件类的 dentry 来创建新文件实例
  * @name:    [in]    name of the "class" of the new file
  * @fops:    [in]    file operations for the new file
  * @priv:    [in]    private data for the new file (will be file's private_data)

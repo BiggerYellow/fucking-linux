@@ -912,18 +912,24 @@ static inline void rcu_read_unlock_bh(void)
 
 /**
  * rcu_read_lock_sched() - mark the beginning of a RCU-sched critical section
+ * 标记 RCU-sched 临界区的开始
  *
  * This is equivalent to rcu_read_lock(), but also disables preemption.
+ * 这相当于 rcu_read_lock(), 但也禁用抢占
  * Read-side critical sections can also be introduced by anything else that
- * disables preemption, including local_irq_disable() and friends.  However,
+ * disables preemption, including local_irq_disable() and friends.
+ * 读侧临界区也可以通过其他任何禁用抢占的方法引入，包括 local_irq_disable() 和 friends
+ * However,
  * please note that the equivalence to rcu_read_lock() applies only to
  * v5.0 and later.  Before v5.0, rcu_read_lock() and rcu_read_lock_sched()
  * were unrelated.
+ * 请注意 只有在 5.0及之后 rcu_read_lock 才和该方法相同，在5.0 之前则不痛
  *
  * Note that rcu_read_lock_sched() and the matching rcu_read_unlock_sched()
  * must occur in the same context, for example, it is illegal to invoke
  * rcu_read_unlock_sched() from process context if the matching
  * rcu_read_lock_sched() was invoked from an NMI handler.
+ * 注意 rcu_read_lock_sched() 和 匹配的 rcu_read_unlock_sched() 必须出现同一个上下文中。
  */
 static inline void rcu_read_lock_sched(void)
 {
@@ -943,6 +949,7 @@ static inline notrace void rcu_read_lock_sched_notrace(void)
 
 /**
  * rcu_read_unlock_sched() - marks the end of a RCU-classic critical section
+ * 标志着 rcu 经典临界区的结束
  *
  * See rcu_read_lock_sched() for more information.
  */
